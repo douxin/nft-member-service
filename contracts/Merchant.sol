@@ -4,6 +4,7 @@ pragma solidity ^0.8.9;
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/Counters.sol";
 import "./interface/IMerchant.sol";
+import "./interface/IPromotion.sol";
 import "./Point.sol";
 import "./Member.sol";
 import "./LevelUpRules.sol";
@@ -44,6 +45,9 @@ contract Merchant is Ownable, LevelUpRules, IMerchant, Pausable {
         uint256 updatedPointAmount
     );
 
+    // promotion activities actived by merchant
+    mapping(address => bool) private _activedPromotions;
+
     mapping(bytes32 => bool) private _tradeNos;
     mapping(address => MemberInfo) private _activeMembers;
     mapping(address => bool) actived;
@@ -56,10 +60,7 @@ contract Merchant is Ownable, LevelUpRules, IMerchant, Pausable {
         uint256 activePointAmount,
         uint256 initPointSupply
     ) {
-        merchant = MerchantInfo({
-            name: name,
-            symbol: symbol
-        });
+        merchant = MerchantInfo({name: name, symbol: symbol});
 
         bytes32 salt = keccak256(abi.encode(name, symbol));
 
@@ -78,7 +79,12 @@ contract Merchant is Ownable, LevelUpRules, IMerchant, Pausable {
         uint8[] calldata pointEarnRatios,
         uint8[] calldata pointConsumeRatios
     ) public onlyOwner {
-        _setUpRules(levelNames, consumeAmounts, pointEarnRatios, pointConsumeRatios);
+        _setUpRules(
+            levelNames,
+            consumeAmounts,
+            pointEarnRatios,
+            pointConsumeRatios
+        );
     }
 
     function activeMember(bytes32 outMemberId) public {
@@ -99,6 +105,11 @@ contract Merchant is Ownable, LevelUpRules, IMerchant, Pausable {
         if (pointAmountRewardWhenActiveCard > 0) {
             _point.mint(msg.sender, pointAmountRewardWhenActiveCard);
         }
+    }
+
+    function updateOffChainMemberId(bytes32 outMemberId) public {
+        require(actived[msg.sender], "Should Actived");
+        _activeMembers[msg.sender].outMemberId = outMemberId;
     }
 
     // add point, update user's point amount and member level
@@ -143,6 +154,10 @@ contract Merchant is Ownable, LevelUpRules, IMerchant, Pausable {
 
     function getMerchantInfo() public view returns (MerchantInfo memory) {
         return merchant;
+    }
+
+    function isPromotionActive(address promotion) public view returns (bool) {
+        return _activedPromotions[promotion];
     }
 
     function _addPointFor(
@@ -208,5 +223,25 @@ contract Merchant is Ownable, LevelUpRules, IMerchant, Pausable {
     function ruleOf(address user) private view returns (Rule memory rule) {
         uint8 level = _activeMembers[user].level;
         rule = _getRuleOfLevel(level);
+    }
+
+    function addPointForPayment(
+        address to,
+        bytes32 outTradeNo,
+        uint256 tradeAmount
+    ) external override {}
+
+    function addPointForActivity(
+        address to,
+        address activity
+    ) external override {
+        require(isPromotionActive(activity), "Promotion not active");
+        uint256 amount = IPromotion(activity).rewardAmount(to);
+        _point.mint(to, amount);
+    }
+
+    function activePromotion(address promotion) public onlyOwner {
+        require(!_activedPromotions[promotion], "Promotion Actived");
+        _activedPromotions[promotion] = true;
     }
 }
