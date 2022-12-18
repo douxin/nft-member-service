@@ -9,8 +9,9 @@ import "./Point.sol";
 import "./Member.sol";
 import "./LevelUpRules.sol";
 import "./Pausable.sol";
+import "./AppConfig.sol";
 
-contract Merchant is Ownable, LevelUpRules, IMerchant, Pausable {
+contract Merchant is Ownable, LevelUpRules, IMerchant, Pausable, AppConfig {
     Point private _point;
     Member private _member;
 
@@ -71,6 +72,10 @@ contract Merchant is Ownable, LevelUpRules, IMerchant, Pausable {
         _member = new Member{salt: salt}(name, symbol);
 
         pointAmountRewardWhenActiveCard = activePointAmount;
+    }
+
+    function setConfig(bool canTransfer) public {
+        config.canTransfer = canTransfer;
     }
 
     function setLevelUpRules(
